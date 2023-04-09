@@ -57,14 +57,14 @@ int test_file_extractor(Fuzzer* fuzzer)
   
   // Create command to execute the extractor with the TEST_FILE as input
   sprintf(cmd, "%s %s 2>&1", fuzzer->extractor_file, TEST_FILE);
-  
+
   char buf[LEN_CRASH_MSG];
   FILE *fp;
 
   // Open a pipe to execute the extractor command
   if ((fp = popen(cmd, "r")) == NULL)
   {
-    puts("Error opening pipe!");
+    printf("Error opening pipe!");
     return -1;
   }
 
@@ -89,7 +89,7 @@ int test_file_extractor(Fuzzer* fuzzer)
   // Close the pipe and check if there was an error
   if (pclose(fp) == -1)
   {
-    puts("Command not found");
+    printf("Command not found");
     rv = -1;
   }
   
@@ -630,12 +630,12 @@ void test_end_bytes(Fuzzer* fuzzer)
   {
     // test with a file containing data
     sprintf(fuzzer->current_test, "end_bytes(%d)_with_file", lengths[i]);
-    write_tar_end(TEST_FILE, &header, buffer, len_buffer, end_bytes, lengths[i]);
+    write_tar_fields(TEST_FILE, &header, buffer, len_buffer, end_bytes, lengths[i]);
     test_file_extractor(fuzzer);
 
     // test without a file (empty file)
     sprintf(fuzzer->current_test, "end_bytes(%d)_w-o_file", lengths[i]);
-    write_tar_end(TEST_FILE, &header, "", 0, end_bytes, lengths[i]);
+    write_tar_fields(TEST_FILE, &header, "", 0, end_bytes, lengths[i]);
     test_file_extractor(fuzzer);
   }
 }
@@ -782,7 +782,7 @@ void free_fuzzer(Fuzzer *fuzzer)
  * The tests include setting names, testing the mode, user ID, group ID, size, modification time,
  * checksum, type flag, link name, magic number, version, and user/group names.
  * Additionally, it tests the end-of-archive and file contents fields.
- * After running the tests, it cleans up any extractor results and outputs the number of tests passed,
+ * After running the tests, it cleans up any extractor results and outprintf the number of tests passed,
  * along with the number of errors and crashes detected by the fuzzer.
  * 
  * @param[in] extractor a pointer to the file path of the extractor being tested
@@ -798,7 +798,7 @@ void fuzz(const char *extractor)
   strcpy(fuzzer->extractor_file, extractor);
 
   // Print a message to indicate the beginning of the fuzzing process.
-  puts("Begin fuzzing...");
+  printf("Begin fuzzing...");
 
   // Start the clock to measure the duration of the fuzzing process.
   clock_t start = clock();
@@ -824,7 +824,7 @@ void fuzz(const char *extractor)
   clock_t duration = clock() - start;
 
   // Print a message to indicate that the extractor results are being cleaned up.
-  puts("Cleaning extractor results...");
+  printf("Cleaning extractor results...");
 
   // Remove any generated files by the extractor and the test file used during the fuzzing process.
   system("rm -rf *" EXT" "TEST_FILE);
