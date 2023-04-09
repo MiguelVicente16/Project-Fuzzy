@@ -57,7 +57,7 @@ int test_file_extractor(Fuzzer* fuzzer)
   
   // Create command to execute the extractor with the TEST_FILE as input
   sprintf(cmd, "%s %s 2>&1", fuzzer->extractor_file, TEST_FILE);
-  
+  printf("yeah");
   char buf[LEN_CRASH_MSG];
   FILE *fp;
 
