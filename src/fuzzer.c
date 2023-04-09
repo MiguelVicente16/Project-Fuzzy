@@ -4,9 +4,9 @@
 #include <time.h>
 #include "fuzzer.h"
 #include "tar.h"
+#include "test.h"
 
 static tar_t header;
-static const char WEIRD_CHARS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 127, 128, 130, 200, 255}; // pensar se colocamos mais
 
 static const unsigned POSSIBLE_MODES[] = {
     TSUID,
@@ -141,63 +141,23 @@ void set_name(Fuzzer* fuzzer, const char *name, const char *field_name)
  * @param[in] size: The size of the field buffer.
  * 
 **/
-void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size)
-{
-  // Test case: empty field
-  set_name(fuzzer, "empty", field_name);
-  strncpy(field, "", size);
-  test_header(fuzzer);
-
-  // Test case: non-numeric field
-  set_name(fuzzer, "not_numeric", field_name);
-  strncpy(field, "hello", size);
-  test_header(fuzzer);
-
-  // Test case: field filled with the maximum digit '7'
-  set_name(fuzzer, "big", field_name);
-  memset(field, '7', size - 1);
-  field[size - 1] = 0;
-  test_header(fuzzer);
-
-  // Test case: field filled with non-octal digit '9'
-  set_name(fuzzer, "not_octal", field_name);
-  memset(field, '9', size - 1);
-  field[size - 1] = 0;
-  test_header(fuzzer);
-
-  // Test case: field not terminated with a null character
-  set_name(fuzzer, "not_terminated", field_name);
-  memset(field, '4', size);
-  test_header(fuzzer);
-
-  // Test case: field with a null character in the middle, but not at the end
-  set_name(fuzzer, "middle_null_termination", field_name);
-  memset(field, 0, size);
-  memset(field, '2', size / 2);
-  test_header(fuzzer);
-
-  // Test case: field with a null character in the middle and at the end
-  set_name(fuzzer, "0 and_middle_null_termination", field_name);
-  memset(field, 0, size);
-  memset(field, '0', size / 2);
-  test_header(fuzzer);
-
-  // Test case: field containing non-ASCII character
-  set_name(fuzzer, "not_ascii", field_name);
-  strncpy(field, "😂", size);
-  test_header(fuzzer);
-
-  // Test case: field filled with '0' character
-  set_name(fuzzer, "all_0", field_name);
-  memset(field, '0', size - 1);
-  field[size - 1] = 0;
-  test_header(fuzzer);
-
-  // Test case: field with all null characters except for the last one, which is '0'
-  set_name(fuzzer, "all_null_but_end_0", field_name);
-  memset(field, 0, size - 1);
-  field[size - 1] = '0';
-  test_header(fuzzer);
+void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+    const Test tests[] = {
+  {"empty", test_empty},
+  {"not_numeric", test_not_numeric},
+  {"big", test_big},
+  {"not_octal", test_not_octal},
+  {"not_terminated", test_not_terminated},
+  {"middle_null_termination", test_middle_null_termination},
+  {"0_and_middle_null_termination", test_0_and_middle_null_termination},
+  {"not_ascii", test_not_ascii},
+  {"all_0", test_all_0},
+  {"all_null_but_end_0", test_all_null_but_end_0}
+  };
+  for (const Test* test = tests; test < tests + sizeof(tests) / sizeof(*tests); ++test) {
+    set_name(fuzzer, test->name, field_name);
+    test->test(fuzzer, field_name, field, size);
+  }
 }
 
 /**
@@ -232,50 +192,34 @@ void test_names(int linkname, Fuzzer *fuzzer) //Aqui verificar se não dá para 
         strncpy(field, header.name, size);
         test_header(fuzzer);
       }
-
+      
       // Test an empty field
       set_name(fuzzer, "empty", field_name);
-      strncpy(field, "", size);
-      test_header(fuzzer);
+      test_empty(fuzzer, field_name, field, size);
 
       // Test the field with weird characters
-      strncpy(field, "0" EXT, size);
-      for (unsigned i = 0; i < sizeof(WEIRD_CHARS); i++)
-      {
-        field[0] = WEIRD_CHARS[i];
-        sprintf(fuzzer->current_test, "%s_weird_char='%c'", field_name, field[0]);
-        test_header(fuzzer);
-      }
+      test_weird_characters(fuzzer, field_name, field, size);
 
       // Test the field with forbidden characters
-      char forbidden_char[] = {'*', '\\', '/', '"', '?', ' '};
-      for (unsigned i = 0; i < sizeof(forbidden_char); i++)
-      {
-        field[0] = forbidden_char[i];
-        sprintf(fuzzer->current_test, "%s_weird_char='%c'", field_name, field[0]);
-        test_header(fuzzer);
-      }
+      test_forbidden_char(fuzzer, field_name, field, size);
 
       // Test the field with a string that's not null-terminated
       set_name(fuzzer, "not_terminated", field_name);
-      memset(field, 'a', size);
-      test_header(fuzzer);
+      test_not_terminated(fuzzer, field_name, field, size);
 
       // Test the field with a string of zeros
       set_name(fuzzer, "fill_all", field_name);
-      sprintf(field, "%0*d" EXT, (int)(size - strlen(EXT) - 1), 0);
-      test_header(fuzzer);
+      test_fill_all(fuzzer, field_name, field, size);
 
       // Test the field with non-ASCII characters (in this case, emojis)
-      set_name(fuzzer, "non_ascii", field_name);
-      strncpy(field, "😂 😎" EXT, size);
-      test_header(fuzzer);
+      set_name(fuzzer, "not_ascii", field_name);
+      test_not_ascii(fuzzer, field_name, field, size);
 
       // Test the field as a directory
       set_name(fuzzer, "directory", field_name);
-      strncpy(field, "tests" EXT "/", size);
-      test_header(fuzzer);
+      test_directory(fuzzer, field_name, field, size);
 }
+
 
 /**
  * This function tests the "mode" field of the header by calling
@@ -340,6 +284,7 @@ void test_gid(Fuzzer* fuzzer)
   generic_field_tests(fuzzer, "gid", field, GID_LEN);
 }
 
+
 /**
  * 
  * This function tests the "size" field of the header by calling
@@ -350,51 +295,30 @@ void test_gid(Fuzzer* fuzzer)
 **/
 void test_size(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the size
   set_header(&header);
-  char *field = header.size;
-
-  // Run generic tests on the size field
+  char* field = header.size;
   generic_field_tests(fuzzer, "size", field, SIZE_LEN);
 
-  // Test various edge cases for the size field
-  // First, test a file with a size of 0 bytes
-  char buffer[] = "hello";
-  unsigned long len_buffer = strlen(buffer);
-  set_name(fuzzer, "0", "size");
-  set_size_header(&header, 0);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
+  struct TestCase {
+    char* name;
+    int size;
+  } testCases[] = {
+    {"0", 0},
+    {"too_small", 2},
+    {"too_big", 20},
+    {"far_too_big", END_LEN * 2},
+    {"far_far_too_big", END_LEN * 2},
+    {"negative", -2}
+  };
 
-  // Next, test a file with a size smaller than the actual size of the data
-  set_name(fuzzer, "too_small", "size");
-  set_size_header(&header, 2);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
-
-  // Then, test a file with a size larger than the actual size of the data
-  set_name(fuzzer, "too_big", "size");
-  set_size_header(&header, 20);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
-
-  // Test a file with a size that exceeds the maximum allowed value
-  set_name(fuzzer, "far_too_big", "size");
-  set_size_header(&header, END_LEN * 2);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
-
-  // Test a file with a size that exceeds the maximum allowed value and has a long filename
-  set_name(fuzzer, "far_far_too_big", "size");
-  set_size_header(&header, END_LEN * 2);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
-
-  // Test a file with a negative size
-  set_name(fuzzer, "negative", "size");
-  sprintf(field, "%011o", -2);
-  write_tar(TEST_FILE, &header, buffer, len_buffer);
-  test_file_extractor(fuzzer);
+  for (long unsigned int i = 0; i < sizeof(testCases)/sizeof(testCases[0]); i++) {
+    set_name(fuzzer, testCases[i].name, "size");
+    set_size_header(&header, testCases[i].size);
+    char buffer[] = "hello";
+    unsigned long len_buffer = strlen(buffer);
+    write_tar(TEST_FILE, &header, buffer, len_buffer);
+    test_file_extractor(fuzzer);
+  }
 }
 
 /**
@@ -408,7 +332,7 @@ void test_mtime(Fuzzer* fuzzer)
 {
   // Set the tar header with default values
   set_header(&header);
-
+  unsigned size = 0;
   // Get the appropriate field to test (mtime)
   char *field = header.mtime;
   char field_name[] = "mtime";
@@ -418,23 +342,20 @@ void test_mtime(Fuzzer* fuzzer)
 
   // Test the field with the current time
   set_name(fuzzer, "current", field_name);
-  sprintf(field, "%lo", (unsigned long)time(NULL));
-  test_header(fuzzer);
+  test_current_time(fuzzer, field_name, field, size);
+
 
   // Test the field with a time 50 hours in the future
   set_name(fuzzer, "later", field_name);
-  sprintf(field, "%lo", (unsigned long)time(NULL) + 50 * 3600);
-  test_header(fuzzer);
+  test_50h_future(fuzzer, field_name, field, size);
 
   // Test the field with a time 50 hours in the past
   set_name(fuzzer, "sooner", field_name);
-  sprintf(field, "%lo", (unsigned long)time(NULL) - 50 * 3600);
-  test_header(fuzzer);
+  test_50h_past(fuzzer, field_name, field, size);
 
   // Test the field with a time far in the future
   set_name(fuzzer, "far_future", field_name);
-  sprintf(field, "%lo", (unsigned long)time(NULL) * 2);
-  test_header(fuzzer);
+  test_far_future(fuzzer, field_name, field, size);
 }
 
 /**
@@ -486,26 +407,6 @@ void test_typeflag(Fuzzer* fuzzer)
       // Test the header with the updated typeflag value
       test_header(fuzzer);
   }
-
- /* 
- // Iterate over all possible values of `typeflag`
-  for (unsigned i = 0; i < 0x100; i++)
-  {
-    // Set the name of the current test to indicate the value of `typeflag`
-    sprintf(name_current_test, "value=0x%02x", i);
-
-    // Set the `typeflag` field of the header struct to the current value of `i`
-    header.typeflag = (char)i;
-
-    // Set the name of the current test case to the value of `typeflag`
-    set_name(fuzzer, name_current_test, field_name);
-
-    // Test the header with the updated `typeflag` value
-    test_header(fuzzer);
-  }
-  */
-
-//generic_field_tests(fuzzer, "mode", field, MODE_LEN);
 }
 
 /**
@@ -722,6 +623,8 @@ void test_files(Fuzzer* fuzzer)
   write_tar_entries(TEST_FILE, files, 1); // Write the tar entry entries containing the large file to the tar archive file TEST_FILE
   test_file_extractor(fuzzer); // test the file extractor with the generated tar archive
 }
+
+
 
 /** 
  * init the path-planning struct

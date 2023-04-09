@@ -5,6 +5,7 @@
 
 #include "tar.h"
 #include "fuzzer.h"
+#include "test.h"
 
 /**
  * The main function of the generation-based fuzzer.

@@ -22,7 +22,7 @@ help: $(OBJDIR)/help.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
 # A target to build the fuzzer executable
-fuzzer: $(OBJDIR)/main.o $(OBJDIR)/tar.o $(OBJDIR)/fuzzer.o
+fuzzer: $(OBJDIR)/main.o $(OBJDIR)/tar.o $(OBJDIR)/fuzzer.o $(OBJDIR)/test.o
 	$(CC) -o $(EXEC) $^ $(CFLAGS)
 
 # A target to create the object directory if it doesn't exist

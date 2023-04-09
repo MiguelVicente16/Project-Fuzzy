@@ -4,6 +4,8 @@
 
 #include "fuzzer.h"
 #include "tar.h"
+#include "test.h"
+
 
 /**
  * Computes the checksum for a tar header and encode it on the header
