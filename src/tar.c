@@ -97,20 +97,6 @@ void set_header(tar_t *header)
 }
 
 /**
- * Writes a tar header without content to a tar archive.
- *
- * @param[in] filename The filename of the tar archive.
- * @param[in] header   The tar header to write to the archive.
- * 
- * @see write_tar
-**/
-void write_empty_tar(const char *filename, tar_t *header)
-{
-  // Call write_tar() with an empty content and a size of 0.
-  write_tar(filename, header, "", 0);
-}
-
-/**
  *  Writes a tar_t and the content of a file in a tar archive.
  * 
  *  @param[in] filename: path of the tar archive

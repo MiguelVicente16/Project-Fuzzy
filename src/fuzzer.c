@@ -105,7 +105,7 @@ int test_file_extractor(Fuzzer* fuzzer)
 **/
 void test_header(Fuzzer *fuzzer)
 {
-  write_empty_tar(TEST_FILE, &header); // Create an empty tar file with the given header // Podemos sq meter o TEST_FILE na struct
+  write_tar(TEST_FILE, &header, "", 0); // Create an empty tar file with the given header // Podemos sq meter o TEST_FILE na struct
   test_file_extractor(fuzzer); // Pass the file to the extractor for testing
 }
 
@@ -156,7 +156,7 @@ void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, un
   };
   for (const Test* test = tests; test < tests + sizeof(tests) / sizeof(*tests); ++test) {
     set_name(fuzzer, test->name, field_name);
-    test->test(fuzzer, field_name, field, size);
+    test->test(fuzzer, field, size);
   }
 }
 
@@ -195,29 +195,29 @@ void test_names(int linkname, Fuzzer *fuzzer) //Aqui verificar se não dá para 
       
       // Test an empty field
       set_name(fuzzer, "empty", field_name);
-      test_empty(fuzzer, field_name, field, size);
+      test_empty(fuzzer, field, size);
 
       // Test the field with weird characters
       test_weird_characters(fuzzer, field_name, field, size);
 
       // Test the field with forbidden characters
-      test_forbidden_char(fuzzer, field_name, field, size);
+      test_forbidden_char(fuzzer, field_name, field);
 
       // Test the field with a string that's not null-terminated
       set_name(fuzzer, "not_terminated", field_name);
-      test_not_terminated(fuzzer, field_name, field, size);
+      test_not_terminated(fuzzer, field, size);
 
       // Test the field with a string of zeros
       set_name(fuzzer, "fill_all", field_name);
-      test_fill_all(fuzzer, field_name, field, size);
+      test_fill_all(fuzzer,  field, size);
 
       // Test the field with non-ASCII characters (in this case, emojis)
       set_name(fuzzer, "not_ascii", field_name);
-      test_not_ascii(fuzzer, field_name, field, size);
+      test_not_ascii(fuzzer, field, size);
 
       // Test the field as a directory
       set_name(fuzzer, "directory", field_name);
-      test_directory(fuzzer, field_name, field, size);
+      test_directory(fuzzer, field, size);
 }
 
 
@@ -332,7 +332,7 @@ void test_mtime(Fuzzer* fuzzer)
 {
   // Set the tar header with default values
   set_header(&header);
-  unsigned size = 0;
+ 
   // Get the appropriate field to test (mtime)
   char *field = header.mtime;
   char field_name[] = "mtime";
@@ -342,20 +342,20 @@ void test_mtime(Fuzzer* fuzzer)
 
   // Test the field with the current time
   set_name(fuzzer, "current", field_name);
-  test_current_time(fuzzer, field_name, field, size);
+  test_current_time(fuzzer, field);
 
 
   // Test the field with a time 50 hours in the future
   set_name(fuzzer, "later", field_name);
-  test_50h_future(fuzzer, field_name, field, size);
+  test_50h_future(fuzzer, field);
 
   // Test the field with a time 50 hours in the past
   set_name(fuzzer, "sooner", field_name);
-  test_50h_past(fuzzer, field_name, field, size);
+  test_50h_past(fuzzer, field);
 
   // Test the field with a time far in the future
   set_name(fuzzer, "far_future", field_name);
-  test_far_future(fuzzer, field_name, field, size);
+  test_far_future(fuzzer, field);
 }
 
 /**

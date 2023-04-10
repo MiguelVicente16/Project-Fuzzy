@@ -11,21 +11,22 @@ static const char WEIRD_CHARS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 127, 128, 1
 
 
 // Test case: empty field
-void test_empty(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_empty(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, 0, size);
   test_header(fuzzer);
 }
 
 
 // Test case: non-numeric field
-void test_not_numeric(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
-  memcpy(field, "hello", 5);
+void test_not_numeric(Fuzzer* fuzzer, char *field, unsigned size) {
+  size = 5;
+  memcpy(field, "hello", size);
   test_header(fuzzer);
 }
 
 
 // Test case: field filled with the maximum digit '7'
-void test_big(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_big(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, '7', size - 1);
   field[size - 1] = 0;
   test_header(fuzzer);
@@ -33,7 +34,7 @@ void test_big(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size
 
 
 // Test case: field filled with non-octal digit '9'
-void test_not_octal(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_not_octal(Fuzzer* fuzzer, char *field, unsigned size) {
     memset(field, '9', size - 1);
   field[size - 1] = 0;
   test_header(fuzzer);
@@ -41,14 +42,14 @@ void test_not_octal(Fuzzer* fuzzer, const char *field_name, char *field, unsigne
 
 
 // Test case: field not terminated with a null character
-void test_not_terminated(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_not_terminated(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, '4', size);
   test_header(fuzzer);
 }
 
 
 // Test case: field with a null character in the middle, but not at the end
-void test_middle_null_termination(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_middle_null_termination(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, 0, size);
   memset(field, '2', size / 2);
   test_header(fuzzer);
@@ -56,27 +57,27 @@ void test_middle_null_termination(Fuzzer* fuzzer, const char *field_name, char *
 
 
 // Test case: field with a null character in the middle and at the end
-void test_0_and_middle_null_termination(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_0_and_middle_null_termination(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, 0, size);
   memset(field, '0', size / 2);
   test_header(fuzzer);
 }
 
 // Test case: field containing non-ASCII character
-void test_not_ascii(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_not_ascii(Fuzzer* fuzzer, char *field, unsigned size) {
   strncpy(field, "😂", size);
   test_header(fuzzer);
 }
 
 // Test case: field filled with '0' character
-void test_all_0(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_all_0(Fuzzer* fuzzer, char *field, unsigned size) {
     memset(field, '0', size - 1);
   field[size - 1] = 0;
   test_header(fuzzer);
 }
 
 // Test case: field with all null characters except for the last one, which is '0'
-void test_all_null_but_end_0(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_all_null_but_end_0(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, 0, size - 1);
   field[size - 1] = '0';
   test_header(fuzzer);
@@ -84,7 +85,7 @@ void test_all_null_but_end_0(Fuzzer* fuzzer, const char *field_name, char *field
 
 
 // Test case: field with forbidden characters
-void test_forbidden_char(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_forbidden_char(Fuzzer* fuzzer, const char *field_name, char *field) {
    char forbidden_char[] = {'*', '\\', '/', '"', '?', ' '};
       for (unsigned i = 0; i < sizeof(forbidden_char); i++)
       {
@@ -106,37 +107,37 @@ void test_weird_characters(Fuzzer* fuzzer, const char *field_name, char *field, 
 }
 
 // Test case: field with a string of zeros
-void test_fill_all(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_fill_all(Fuzzer* fuzzer, char *field, unsigned size) {
       sprintf(field, "%0*d" EXT, (int)(size - strlen(EXT) - 1), 0);
       test_header(fuzzer);
 }
 
 // Test case: field as a directory
-void test_directory(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_directory(Fuzzer* fuzzer,  char *field, unsigned size) {
       strncpy(field, "tests" EXT "/", size);
       test_header(fuzzer);
 }
 
 // Test case: field with the current time
-void test_current_time(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_current_time(Fuzzer* fuzzer,char *field) {
     sprintf(field, "%lo", (unsigned long)time(NULL));
     test_header(fuzzer);
 }
 
 // Test case: field with a time 50 hours in the future
-void test_50h_future(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_50h_future(Fuzzer* fuzzer, char *field) {
     sprintf(field, "%lo", (unsigned long)time(NULL) + 50 * 3600);
     test_header(fuzzer);
 }
 
 // Test case: field with a time 50 hours in the past
-void test_50h_past(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_50h_past(Fuzzer* fuzzer,  char *field) {
   sprintf(field, "%lo", (unsigned long)time(NULL) - 50 * 3600);
   test_header(fuzzer);
 }
 
 // Test case: field with a time far in the future
-void test_far_future(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
+void test_far_future(Fuzzer* fuzzer, char *field) {
   sprintf(field, "%lo", (unsigned long)time(NULL) * 2);
   test_header(fuzzer);
 }

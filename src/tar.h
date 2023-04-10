@@ -84,7 +84,6 @@ typedef struct
 unsigned int calculate_checksum(tar_t* entry);
 void set_size_header(tar_t *header, size_t size);
 void set_header(tar_t *header);
-void write_empty_tar(const char *filename, tar_t *header);
 void write_tar(const char *filename, tar_t *header, const char *buffer, size_t size);
 void write_tar_header(FILE *file, tar_t *header);
 void write_tar_fields(const char *filename, tar_t *header, const char *buffer, size_t size, const char *end_bytes, size_t end_size);
