@@ -16,7 +16,7 @@
 #define CRASH_MSG "*** The program has crashed ***\n"
 #define LEN_CRASH_MSG strlen(CRASH_MSG) + 1
 
-typedef struct
+typedef struct Fuzzer
 {
     int errors_number;
     int no_out_number;
@@ -30,6 +30,8 @@ int test_file_extractor(Fuzzer* fuzzer);
 void test_header(Fuzzer *fuzzer);
 void set_name(Fuzzer* fuzzer, const char *name, const char *field_name);
 void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size);
+void do_init_tests(Fuzzer* fuzzer, const char* field_name, unsigned size, char** field_ptr);
+char* get_field_pointer(const char* field_name);
 void test_names(int linkname, Fuzzer *fuzzer);
 void test_mode(Fuzzer *fuzzer);
 void test_uid(Fuzzer* fuzzer);
@@ -41,7 +43,8 @@ void test_typeflag(Fuzzer* fuzzer);
 void test_linkname(Fuzzer* fuzzer);
 void test_magic(Fuzzer* fuzzer);
 void test_version(Fuzzer* fuzzer);
-void test_uname(Fuzzer* fuzzer, int gname);
+void test_uname(Fuzzer* fuzzer);
+void test_gname(Fuzzer* fuzzer);
 void test_end_bytes(Fuzzer* fuzzer);
 void test_files(Fuzzer* fuzzer);
 Fuzzer* init_fuzzer();

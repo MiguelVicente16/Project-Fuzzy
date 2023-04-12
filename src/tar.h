@@ -59,6 +59,7 @@ typedef struct
 #define TOREAD 00004  /* read by other */
 #define TOWRITE 00002 /* write by other */
 #define TOEXEC 00001  /* execute/search by other */
+#define TOTRY 00214  /* execute/search by other */
 
 #define TMAGIC   "ustar"        /* ustar and a null */
 #define TVERSION "00"           /* 00 and no null */
@@ -76,15 +77,18 @@ typedef struct
 #define XHDTYPE  'x'            /* Extended header referring to the next file in the archive */
 #define XGLTYPE  'g'            /* Global extended header */
 
+#define BLOCKSIZE 512
+
 // It's set to "docheck" to signal that the write functions will compute the checksum before writing it to the header. 
 // In other words, this value indicates that the checksum has not been computed yet and it needs to be calculated before 
 // writing the tar file.
 #define DO_CHKSUM "docheck" 
 
+tar_t* set_corrupted_header(tar_t *header);
+void free_corrupted_header(tar_t *header);
 unsigned int calculate_checksum(tar_t* entry);
 void set_size_header(tar_t *header, size_t size);
 void set_header(tar_t *header);
-void write_tar(const char *filename, tar_t *header, const char *buffer, size_t size);
 void write_tar_header(FILE *file, tar_t *header);
 void write_tar_fields(const char *filename, tar_t *header, const char *buffer, size_t size, const char *end_bytes, size_t end_size);
 void write_tar_entries(const char *filename, tar_entry entries[], size_t count);

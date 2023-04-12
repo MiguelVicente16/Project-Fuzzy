@@ -2,6 +2,13 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <libgen.h>
+
 #include "fuzzer.h"
 #include "tar.h"
 #include "test.h"
@@ -96,26 +103,29 @@ void set_header(tar_t *header)
   sprintf(header->devminor, "0000000");
 }
 
-/**
- *  Writes a tar_t and the content of a file in a tar archive.
- * 
- *  @param[in] filename: path of the tar archive
- *  @param[in] header: tar_t structure representing the file to be added to the archive
- *  @param[in] buffer: content of the file to be added to the archive
- *  @param[in] size: size of the file to be added to the archive
- * 
- *  The function first initializes an array of END_LEN bytes called end_bytes with zeros.
- *  It then calls the write_tar_fields function to write the file header, content, and end bytes
- *  to the tar archive. The end_bytes array is used to ensure that the archive has a size that
- *  is a multiple of the tar block size.
- *  @see write_tar_fields
-**/
-void write_tar(const char *filename, tar_t *header, const char *buffer, size_t size) {
-  char end_bytes[END_LEN];
-  memset(end_bytes, 0, END_LEN);
 
-  write_tar_fields(filename, header, buffer, size, end_bytes, END_LEN);
+tar_t* set_corrupted_header(tar_t *header)
+{
+  // Set all the fields of the header to zero.
+  header = (tar_t*) malloc(sizeof(tar_t));
+    
+  if (header == NULL)
+  {
+    printf("Struct not allocated \n");
+    exit(0);
+  }
+  return header;
 }
+
+void free_corrupted_header(tar_t *header)
+{
+  // Set all the fields of the header to zero.
+  free(header);
+
+}
+
+
+
 
 /**
  * Writes a tar header to a file, computing the checksum if it is set to DO_CHKSUM
@@ -166,7 +176,7 @@ void write_tar_fields(const char *filename, tar_t *header, const char *buffer, s
   FILE *file = fopen(filename, "wb");
   if (!file)
   {
-    printf("Could not write to file");
+    printf("Could not write to the file");
     return;
   }
 
@@ -237,3 +247,4 @@ void write_tar_entries(const char *filename, tar_entry entries[], size_t count)
   // Close the file
   fclose(f);
 }
+

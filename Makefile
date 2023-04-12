@@ -17,10 +17,6 @@ SRCDIR = src
 # The default target, which is the executable fuzzer
 all: objdir $(EXEC)
 
-# A target to compile the help program
-help: $(OBJDIR)/help.o
-	$(CC) -o $@ $^ $(CFLAGS)
-
 # A target to build the fuzzer executable
 fuzzer: $(OBJDIR)/main.o $(OBJDIR)/tar.o $(OBJDIR)/fuzzer.o $(OBJDIR)/test.o
 	$(CC) -o $(EXEC) $^ $(CFLAGS)
@@ -34,13 +30,17 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) -o $@ -c $< $(CFLAGS)
 
 # A target to clean up the object files
-clean:
+clean_obj:
 	rm -rf $(OBJDIR)
 
 # A target to clean up the object files and the executable and generated files
-mrproper: clean succ
+clean:
 	rm -rf $(EXEC) help $(OBJDIR)
 
 # A target to clean up generated success files
-succ:
-	rm -rf success_* *.dat
+clean_succ:
+	rm -rf success_* *.txt
+
+# A target to clean up missed files
+clean_trash:
+	rm -rf *.txt

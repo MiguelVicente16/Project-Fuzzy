@@ -2,20 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
 #include "fuzzer.h"
 #include "tar.h"
 #include "test.h"
-
-
-static const char WEIRD_CHARS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 127, 128, 130, 200, 255}; // pensar se colocamos mais
-
 
 // Test case: empty field
 void test_empty(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, 0, size);
   test_header(fuzzer);
 }
-
 
 // Test case: non-numeric field
 void test_not_numeric(Fuzzer* fuzzer, char *field, unsigned size) {
@@ -24,7 +20,6 @@ void test_not_numeric(Fuzzer* fuzzer, char *field, unsigned size) {
   test_header(fuzzer);
 }
 
-
 // Test case: field filled with the maximum digit '7'
 void test_big(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, '7', size - 1);
@@ -32,21 +27,18 @@ void test_big(Fuzzer* fuzzer, char *field, unsigned size) {
   test_header(fuzzer);
 }
 
-
 // Test case: field filled with non-octal digit '9'
 void test_not_octal(Fuzzer* fuzzer, char *field, unsigned size) {
-    memset(field, '9', size - 1);
+  memset(field, '9', size - 1);
   field[size - 1] = 0;
   test_header(fuzzer);
 }
-
 
 // Test case: field not terminated with a null character
 void test_not_terminated(Fuzzer* fuzzer, char *field, unsigned size) {
   memset(field, '4', size);
   test_header(fuzzer);
 }
-
 
 // Test case: field with a null character in the middle, but not at the end
 void test_middle_null_termination(Fuzzer* fuzzer, char *field, unsigned size) {
@@ -65,13 +57,14 @@ void test_0_and_middle_null_termination(Fuzzer* fuzzer, char *field, unsigned si
 
 // Test case: field containing non-ASCII character
 void test_not_ascii(Fuzzer* fuzzer, char *field, unsigned size) {
-  strncpy(field, "😂", size);
+  strncpy(field, "😋🥵😎" EXT, size);
+
   test_header(fuzzer);
 }
 
 // Test case: field filled with '0' character
 void test_all_0(Fuzzer* fuzzer, char *field, unsigned size) {
-    memset(field, '0', size - 1);
+  memset(field, '0', size - 1);
   field[size - 1] = 0;
   test_header(fuzzer);
 }
@@ -82,7 +75,6 @@ void test_all_null_but_end_0(Fuzzer* fuzzer, char *field, unsigned size) {
   field[size - 1] = '0';
   test_header(fuzzer);
 }
-
 
 // Test case: field with forbidden characters
 void test_forbidden_char(Fuzzer* fuzzer, const char *field_name, char *field) {
@@ -98,9 +90,22 @@ void test_forbidden_char(Fuzzer* fuzzer, const char *field_name, char *field) {
 // Test case: field with weird characters
 void test_weird_characters(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
       strncpy(field, "0" EXT, size);
-      for (unsigned i = 0; i < sizeof(WEIRD_CHARS); i++)
+
+      static const int WEIRD_CHARS_LEN = 161;
+      char WEIRD_CHARS[WEIRD_CHARS_LEN];
+
+      int i, j = 0;
+      for (i = 0; i <= 31; i++) {
+          WEIRD_CHARS[j++] = (char)i;
+      }
+
+      for (i = 127; i <= 255; i++) {
+          WEIRD_CHARS[j++] = (char)i;
+      }
+
+      for (unsigned k = 0; k < sizeof(WEIRD_CHARS); k++)
       {
-        field[0] = WEIRD_CHARS[i];
+        field[0] = WEIRD_CHARS[k];
         sprintf(fuzzer->current_test, "%s_weird_char='%c'", field_name, field[0]);
         test_header(fuzzer);
       }
@@ -141,7 +146,3 @@ void test_far_future(Fuzzer* fuzzer, char *field) {
   sprintf(field, "%lo", (unsigned long)time(NULL) * 2);
   test_header(fuzzer);
 }
-
-
-
-

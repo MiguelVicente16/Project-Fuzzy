@@ -20,7 +20,8 @@ static const unsigned POSSIBLE_MODES[] = {
     TGEXEC,
     TOREAD,
     TOWRITE,
-    TOEXEC
+    TOEXEC, 
+    TOTRY
 };
 
 static const unsigned TYPE_FLAG_VALUES[] = {
@@ -36,7 +37,6 @@ static const unsigned TYPE_FLAG_VALUES[] = {
     XHDTYPE, 
     XGLTYPE, 
 };
-
 
 /**
   * This function tests the extractor with the file TEST_FILE and records some stats.
@@ -82,7 +82,7 @@ int test_file_extractor(Fuzzer* fuzzer)
     // Rename the input file with a new name indicating the test and crash number
     char new_name[100];
     sprintf(new_name, "success_%03u_%s.tar", fuzzer->crashes_number, fuzzer->current_test);
-    printf(KGRN "Crash message n°%u " KNRM "-> %s \n", fuzzer->crashes_number, fuzzer->current_test);
+    printf(KRED "Extractor crashed %u time " KNRM "with the test ->" KMAG " %s \n" KNRM, fuzzer->crashes_number, fuzzer->current_test);
     rename(TEST_FILE, new_name);
   }
   
@@ -105,7 +105,11 @@ int test_file_extractor(Fuzzer* fuzzer)
 **/
 void test_header(Fuzzer *fuzzer)
 {
-  write_tar(TEST_FILE, &header, "", 0); // Create an empty tar file with the given header // Podemos sq meter o TEST_FILE na struct
+  char end_bytes[END_LEN];
+  memset(end_bytes, 0, END_LEN);
+
+  write_tar_fields(TEST_FILE, &header, "", 0, end_bytes, END_LEN); // Create an empty tar file with the given header
+
   test_file_extractor(fuzzer); // Pass the file to the extractor for testing
 }
 
@@ -142,17 +146,19 @@ void set_name(Fuzzer* fuzzer, const char *name, const char *field_name)
  * 
 **/
 void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, unsigned size) {
-    const Test tests[] = {
-  {"empty", test_empty},
-  {"not_numeric", test_not_numeric},
-  {"big", test_big},
-  {"not_octal", test_not_octal},
-  {"not_terminated", test_not_terminated},
-  {"middle_null_termination", test_middle_null_termination},
-  {"0_and_middle_null_termination", test_0_and_middle_null_termination},
-  {"not_ascii", test_not_ascii},
-  {"all_0", test_all_0},
-  {"all_null_but_end_0", test_all_null_but_end_0}
+  const Test tests[] = {
+    {"empty", test_empty},
+    {"not_numeric", test_not_numeric},
+    {"fill_all", test_fill_all},
+    {"big", test_big},
+    {"not_octal", test_not_octal},
+    {"not_terminated", test_not_terminated},
+    {"middle_null_termination", test_middle_null_termination},
+    {"0_and_middle_null_termination", test_0_and_middle_null_termination},
+    {"not_ascii", test_not_ascii},
+    {"all_0", test_all_0},
+    {"all_null_but_end_0", test_all_null_but_end_0},
+    {"directory", test_directory}
   };
   for (const Test* test = tests; test < tests + sizeof(tests) / sizeof(*tests); ++test) {
     set_name(fuzzer, test->name, field_name);
@@ -161,65 +167,114 @@ void generic_field_tests(Fuzzer* fuzzer, const char *field_name, char *field, un
 }
 
 /**
+ * This function initializes the header and a specific field within it
+ * for testing, and runs generic tests on the field.
+ * 
+ * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
+ * @param[in] field_name: The name of the field to initialize and test.
+ * @param[in] size: The size of the field.
+ * @param[in] field_ptr: A pointer to a char pointer that will be set to the address of the field.
+ **/
+void do_init_tests(Fuzzer* fuzzer, const char* field_name, unsigned size, char** field_ptr){
+  //Initialize the header and the field for the mode
+  set_header(&header);
+  char *field = get_field_pointer(field_name);
+  // Run generic tests on the field
+  generic_field_tests(fuzzer, field_name, field, size);
+  // Set the field pointer to the appropriate value
+  if (field != NULL) {
+    *field_ptr = field;
+  }
+}
+
+/**
+ * This function returns a pointer to a specific field within the header.
+ * 
+ * @param[in] field_name: The name of the field to retrieve.
+ * @param[out] header.field_name: A pointer to the field, or NULL if the field name is invalid.
+ **/
+char* get_field_pointer(const char* field_name) {
+  if (strcmp(field_name, "mode") == 0) {
+    return header.mode;
+  } else if (strcmp(field_name, "uid") == 0) {
+    return header.uid;
+  } else if (strcmp(field_name, "gid") == 0) {
+    return header.gid;
+  } else if (strcmp(field_name, "size") == 0) {
+    return header.size;
+  } else if (strcmp(field_name, "mtime") == 0) {
+    return header.mtime;
+  } else if (strcmp(field_name, "chksum") == 0) {
+    return header.chksum;
+  } else if (strcmp(field_name, "linkname") == 0) {
+    return header.linkname;
+  } else if (strcmp(field_name, "magic") == 0) {
+    return header.magic;
+  } else if (strcmp(field_name, "version") == 0) {
+    return header.version;
+  } else if (strcmp(field_name, "uname") == 0) {
+    return header.uname;
+  } else if (strcmp(field_name, "gname") == 0) {
+    return header.gname;
+  } else {
+    // handle invalid field name
+    return NULL;
+  }
+}
+
+/**
   * This function tests the "name" and "linkname" fields of the tar header by calling
   * various tests on them, including empty values, weird characters, forbidden characters,
   * non-null terminated strings, strings of zeros, non-ASCII characters (emojis), and directories.
   * 
-  *@param[in]linkname: A boolean indicating whether to test the "linkname" or "name" field.
-  *@param[in]fuzzer: A pointer to the Fuzzer struct containing the test case and options.
+  *@param[in] linkname: A boolean indicating whether to test the "linkname" or "name" field.
+  *@param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
   * 
 **/
 void test_names(int linkname, Fuzzer *fuzzer) //Aqui verificar se não dá para otimizar, escrever em menos linhas
 {
-      // Set the tar header with default values
-      set_header(&header);
+    // Set the tar header with default values
+    set_header(&header);
 
-      // Get the appropriate field to test (linkname or name)
-      char *field = header.linkname;
-      char field_name[] = "linkname";
-      unsigned size = LINKNAME_LEN;
+    // Get the appropriate field to test (linkname or name)
+    char *field = header.linkname;
+    char field_name[] = "linkname";
+    unsigned size = LINKNAME_LEN;
 
-      if (!linkname)
-      {
-        field = header.name;
-        sprintf(field_name, "name");
-        size = NAME_LEN;
-      }
-      else
-      {
-        // Test the linkname with the same value as the name
-        set_name(fuzzer, "same_as_name", field_name);
-        strncpy(field, header.name, size);
-        test_header(fuzzer);
-      }
-      
-      // Test an empty field
-      set_name(fuzzer, "empty", field_name);
-      test_empty(fuzzer, field, size);
+    const Test tests[] = {
+      {"empty", test_empty},
+      {"not_terminated", test_not_terminated},
+      {"fill_all", test_fill_all},
+      {"not_ascii", test_not_ascii},
+      {"directory", test_directory}
+    };
 
-      // Test the field with weird characters
-      test_weird_characters(fuzzer, field_name, field, size);
 
-      // Test the field with forbidden characters
-      test_forbidden_char(fuzzer, field_name, field);
+    if (!linkname)
+    {
+      field = header.name;
+      sprintf(field_name, "name");
+      size = NAME_LEN;
+    }
+    else
+    {
+      // Test the linkname with the same value as the name
+      set_name(fuzzer, "same_as_name", field_name);
+      strncpy(field, header.name, size);
+      test_header(fuzzer);
+    }
 
-      // Test the field with a string that's not null-terminated
-      set_name(fuzzer, "not_terminated", field_name);
-      test_not_terminated(fuzzer, field, size);
+    for (const Test* test = tests; test < tests + sizeof(tests) / sizeof(*tests); ++test) {
+      set_name(fuzzer, test->name, field_name);
+      test->test(fuzzer, field, size);
+    }
 
-      // Test the field with a string of zeros
-      set_name(fuzzer, "fill_all", field_name);
-      test_fill_all(fuzzer,  field, size);
+    // Test the field with weird characters
+    test_weird_characters(fuzzer, field_name, field, size);
 
-      // Test the field with non-ASCII characters (in this case, emojis)
-      set_name(fuzzer, "not_ascii", field_name);
-      test_not_ascii(fuzzer, field, size);
-
-      // Test the field as a directory
-      set_name(fuzzer, "directory", field_name);
-      test_directory(fuzzer, field, size);
+    // Test the field with forbidden characters
+    test_forbidden_char(fuzzer, field_name, field);
 }
-
 
 /**
  * This function tests the "mode" field of the header by calling
@@ -230,12 +285,9 @@ void test_names(int linkname, Fuzzer *fuzzer) //Aqui verificar se não dá para 
  **/
 void test_mode(Fuzzer *fuzzer)
 {
-  // Initialize the header and the field for the mode
-  set_header(&header);
-  char *field = header.mode;
-
-  // Run generic tests on the mode field
-  generic_field_tests(fuzzer, "mode", field, MODE_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "mode", MODE_LEN, &field);
 
   // Test all possible values of the mode field
   for (unsigned i = 0; i < sizeof(POSSIBLE_MODES) / sizeof(POSSIBLE_MODES[0]); i++)
@@ -254,36 +306,29 @@ void test_mode(Fuzzer *fuzzer)
 
 /**
  * This function tests the "uid" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
+ * the do_init_tests function with the appropriate arguments.
  * 
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  **/
 void test_uid(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the uid
-  set_header(&header);
-  char *field = header.uid;
-
-  // Run generic tests on the uid field
-  generic_field_tests(fuzzer, "uid", field, UID_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "uid", UID_LEN, &field);
 }
 
 /**
  * This function tests the "gid" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
+ * the do_init_tests function with the appropriate arguments.
  * 
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  **/
 void test_gid(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the gid
-  set_header(&header);
-  char *field = header.gid;
-
-  // Run generic tests on the gid field
-  generic_field_tests(fuzzer, "gid", field, GID_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "gid", GID_LEN, &field);
 }
-
 
 /**
  * 
@@ -295,9 +340,12 @@ void test_gid(Fuzzer* fuzzer)
 **/
 void test_size(Fuzzer* fuzzer)
 {
-  set_header(&header);
-  char* field = header.size;
-  generic_field_tests(fuzzer, "size", field, SIZE_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "size", SIZE_LEN, &field);
+
+  char buffer[] = "hello";
+  unsigned long len_buffer = strlen(buffer);
 
   struct TestCase {
     char* name;
@@ -314,9 +362,14 @@ void test_size(Fuzzer* fuzzer)
   for (long unsigned int i = 0; i < sizeof(testCases)/sizeof(testCases[0]); i++) {
     set_name(fuzzer, testCases[i].name, "size");
     set_size_header(&header, testCases[i].size);
-    char buffer[] = "hello";
-    unsigned long len_buffer = strlen(buffer);
-    write_tar(TEST_FILE, &header, buffer, len_buffer);
+    if(strcmp(testCases[i].name, "negative") == 0){
+      sprintf(field, "%011o", -2);
+    }
+
+    char end_bytes[END_LEN];
+    memset(end_bytes, 0, END_LEN);
+
+    write_tar_fields(TEST_FILE, &header, buffer, len_buffer, end_bytes, END_LEN); 
     test_file_extractor(fuzzer);
   }
 }
@@ -330,49 +383,38 @@ void test_size(Fuzzer* fuzzer)
  **/
 void test_mtime(Fuzzer* fuzzer)
 {
-  // Set the tar header with default values
-  set_header(&header);
  
-  // Get the appropriate field to test (mtime)
-  char *field = header.mtime;
+  // Init and do some tests for this field
+  char *field = NULL;
   char field_name[] = "mtime";
+  do_init_tests(fuzzer, field_name, MTIME_LEN, &field);
 
-  // Call the generic_field_tests function to test the field with default values
-  generic_field_tests(fuzzer, field_name, field, MTIME_LEN);
+  const Test_time tests[] = {
+      {"current", test_current_time},
+      {"later", test_50h_future},
+      {"sooner", test_50h_past},
+      {"far_future", test_far_future}
+  };
 
-  // Test the field with the current time
-  set_name(fuzzer, "current", field_name);
-  test_current_time(fuzzer, field);
+  for (const Test_time* test = tests; test < tests + sizeof(tests) / sizeof(*tests); ++test) {
+      set_name(fuzzer, test->name, field_name);
+      test->test(fuzzer, field);
+  }
 
-
-  // Test the field with a time 50 hours in the future
-  set_name(fuzzer, "later", field_name);
-  test_50h_future(fuzzer, field);
-
-  // Test the field with a time 50 hours in the past
-  set_name(fuzzer, "sooner", field_name);
-  test_50h_past(fuzzer, field);
-
-  // Test the field with a time far in the future
-  set_name(fuzzer, "far_future", field_name);
-  test_far_future(fuzzer, field);
 }
 
 /**
  * This function tests the "chksum" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
+ * the do_init_tests function with the appropriate arguments.
  * 
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  * 
  **/
 void test_chksum(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the chksum
-  set_header(&header);
-  char *field = header.chksum;
-
-  // Run generic tests on the gid field
-  generic_field_tests(fuzzer, "chksum", field, CHKSUM_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "chksum", CHKSUM_LEN, &field);
 }
 
 /**
@@ -407,23 +449,34 @@ void test_typeflag(Fuzzer* fuzzer)
       // Test the header with the updated typeflag value
       test_header(fuzzer);
   }
+  for (unsigned i = 0; i < 0x100; i++)
+  {
+      // Set the name of the current test to indicate the value of typeflag
+      sprintf(name_current_test, "value=%c", TYPE_FLAG_VALUES[i]);
+
+      // Set the typeflag field of the header struct to the current value of i
+      header.typeflag = TYPE_FLAG_VALUES[i];
+
+      // Set the name of the current test case to the value of typeflag
+      set_name(fuzzer, name_current_test, field_name);
+
+      // Test the header with the updated typeflag value
+      test_header(fuzzer);
+  }
 }
 
 /**
  * This function tests the "linkname" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
+ * the do_init_tests function with the appropriate arguments.
  * 
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  * 
  **/
 void test_linkname(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the linkname
-  set_header(&header);
-  char *field = header.linkname;
-
-  // Run generic tests on the linkname field
-  generic_field_tests(fuzzer, "linkname", field, LINKNAME_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "linkname", LINKNAME_LEN, &field);
 
   // Test the linkname field for valid names
   // This function tests the linkname for invalid characters and empty names
@@ -432,19 +485,16 @@ void test_linkname(Fuzzer* fuzzer)
 
 /**
  * This function tests the "magic" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
+ * the do_init_tests function with the appropriate arguments.
  * 
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  * 
  **/
 void test_magic(Fuzzer* fuzzer)
 {
-  // Initialize the header and the field for the magic field
-  set_header(&header);
-  char *field = header.magic;
-
-  // Run generic tests on the magic field
-  generic_field_tests(fuzzer, "magic", field, MAGIC_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "magic", MAGIC_LEN, &field);
 }
 
 /**
@@ -457,12 +507,9 @@ void test_magic(Fuzzer* fuzzer)
  **/
 void test_version(Fuzzer* fuzzer)
 {
-  // Set up the header and field for the version test
-  set_header(&header);
-  char *field = header.version;
-  
-  // Run generic tests on the version field
-  generic_field_tests(fuzzer, "version", field, VERSION_LEN);
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "version", VERSION_LEN, &field);
 
   // Loop over all possible values for the version field (64 total)
   for (unsigned i = 0; i < 64; i++)
@@ -480,28 +527,29 @@ void test_version(Fuzzer* fuzzer)
 }
 
 /**
- * This function tests the "uname/gname" field of the header by calling
- * the generic_field_tests function with the appropriate arguments.
- * @param[in] gname  If is set to 0, the function tests the uname field.
- *                   If is set to 1, the function tests the gname field.
+ * This function tests the "uname" field of the header by calling
+ * the do_init_tests function with the appropriate arguments.
  * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
  * 
  **/
-void test_uname(Fuzzer* fuzzer, int gname)
+void test_uname(Fuzzer* fuzzer)
 {
-  char *field = header.uname;  // Set the field pointer to the uname field
-  char field_name[] = "uname";  // Set the field name to "uname" by default
-  unsigned size = UNAME_LEN;  // Set the field size to the length of the uname field
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "uname", UNAME_LEN, &field);
+}
 
-  if (!gname)  // If gname is 0, test the uname field
-  {
-    field = header.gname;  // Set the field pointer to the gname field
-    sprintf(field_name, "gname");  // Change the field name to "gname"
-    size = GNAME_LEN;  // Set the field size to the length of the gname field
-  }
-  
-  set_header(&header);  // Initialize the header
-  generic_field_tests(fuzzer, field_name, field, size);  // Run generic tests on the field
+/**
+ * This function tests the "gname" field of the header by calling
+ * the do_init_tests function with the appropriate arguments.
+ * @param[in] fuzzer: A pointer to the Fuzzer struct containing the test case and options.
+ * 
+ **/
+void test_gname(Fuzzer* fuzzer)
+{
+  // Init and do some tests for this field
+  char *field = NULL;
+  do_init_tests(fuzzer, "gname", UNAME_LEN, &field);
 }
 
 /**
@@ -518,13 +566,13 @@ void test_end_bytes(Fuzzer* fuzzer)
   char end_bytes[END_LEN * 2]; // buffer to hold the end-of-file bytes
   memset(end_bytes, 0, END_LEN * 2); // initialize buffer to all zeroes
 
-  char buffer[] = "hello"; // data buffer to write to the test file
+  char buffer[] = "hello world"; // data buffer to write to the test file
   size_t len_buffer = strlen(buffer); // length of data buffer
 
   set_header(&header); // initialize tar header
   set_size_header(&header, strlen(buffer)); // set the size of the data in the header
 
-  int lengths[] = {END_LEN * 2, END_LEN, 512, 1, 0}; // array of different EOF byte lengths to test
+  int lengths[] = {END_LEN * 8, END_LEN * 4, END_LEN * 2, END_LEN, END_LEN/2, END_LEN/4, END_LEN/8, 1, 0}; // array of different EOF byte lengths to test
 
   // iterate through the different EOF byte lengths to test
   for (unsigned i = 0; i < sizeof(lengths) / sizeof(int); i++)
@@ -622,6 +670,19 @@ void test_files(Fuzzer* fuzzer)
   
   write_tar_entries(TEST_FILE, files, 1); // Write the tar entry entries containing the large file to the tar archive file TEST_FILE
   test_file_extractor(fuzzer); // test the file extractor with the generated tar archive
+
+  tar_t *header_3 = NULL;
+  
+  header_3 = set_corrupted_header(header_3);
+
+  char end_bytes[END_LEN];
+  memset(end_bytes, 0, END_LEN);
+
+  write_tar_fields(TEST_FILE, header_3, " ", 0, end_bytes, END_LEN); // Create an empty tar file with the given header
+
+  test_file_extractor(fuzzer); // Pass the file to the extractor for testing
+
+  free_corrupted_header(header_3);
 }
 
 
@@ -701,7 +762,7 @@ void fuzz(const char *extractor)
   strcpy(fuzzer->extractor_file, extractor);
 
   // Print a message to indicate the beginning of the fuzzing process.
-  printf("Begin fuzzing...");
+  printf("\nBegin fuzzing...\n");
 
   // Start the clock to measure the duration of the fuzzing process.
   clock_t start = clock();
@@ -718,8 +779,8 @@ void fuzz(const char *extractor)
   test_linkname(fuzzer);
   test_magic(fuzzer);
   test_version(fuzzer);
-  test_uname(fuzzer, 0);
-  test_uname(fuzzer, 1);
+  test_uname(fuzzer);
+  test_gname(fuzzer);
   test_end_bytes(fuzzer);
   test_files(fuzzer);
 
@@ -727,16 +788,17 @@ void fuzz(const char *extractor)
   clock_t duration = clock() - start;
 
   // Print a message to indicate that the extractor results are being cleaned up.
-  printf("Cleaning extractor results...");
+  printf("\nCleaning extractor results that did not crash...");
 
   // Remove any generated files by the extractor and the test file used during the fuzzing process.
   system("rm -rf *" EXT" "TEST_FILE);
 
   // Print a summary of the results of the fuzzing process.
-  printf("\n%u tests passed in %.3f s:\n", fuzzer->errors_number + fuzzer->no_out_number + fuzzer->crashes_number, (float)duration / CLOCKS_PER_SEC);
-  printf(KYEL "%u without output" KNRM "\n", fuzzer->no_out_number);
-  printf(KRED "%u errors" KNRM " catched by the extractor\n", fuzzer->errors_number);
-  printf(KGRN "%u crashes" KNRM " detected by the fuzzer\n", fuzzer->crashes_number);
+  printf("\nWe did %u tests, which were passed in %.3f s:\n", fuzzer->errors_number + fuzzer->no_out_number + fuzzer->crashes_number, (float)duration / CLOCKS_PER_SEC);
+  printf("\nOf those we got:\n");
+  printf(KCYN "%u without output" KNRM "\n", fuzzer->no_out_number);
+  printf(KRED  "%u with errors" KNRM "\n", fuzzer->errors_number);
+  printf("The extractor crashed " KGRN "%u times" KNRM "\n", fuzzer->crashes_number);
 
   // Free up memory used by the fuzzer struct.
   free_fuzzer(fuzzer);

@@ -12,6 +12,11 @@ typedef struct {
   void (*test)(Fuzzer* fuzzer, char *field, unsigned size);
 } Test;
 
+typedef struct {
+  const char* name;
+  void (*test)(Fuzzer* fuzzer, char *field);
+} Test_time;
+
 
 void test_empty(Fuzzer* fuzzer, char *field, unsigned size);
 void test_not_numeric(Fuzzer* fuzzer, char *field, unsigned size);
