@@ -1,3 +1,12 @@
+/**
+ * Project Fuzzer
+ * 
+ * Group 7
+ * João Miguel Custódio Gomes
+ * Miguel Mendes Vicente
+ * 
+**/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
